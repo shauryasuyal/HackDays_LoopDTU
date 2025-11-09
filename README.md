@@ -5,6 +5,8 @@
 
 Beyond standard ride-hailing, Loop DTU integrates advanced AI features to enhance campus life, including a vision-based "Where am I?" locator, an intelligent conversational navigator, and an automated emergency triage system for immediate ambulance dispatch.
 
+Try it Now ! https://loopdtu.netlify.app/
+
 
 ## Features 
 
