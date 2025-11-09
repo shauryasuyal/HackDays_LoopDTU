@@ -26,7 +26,7 @@ Beyond standard ride-hailing, Loop DTU integrates advanced AI features to enhanc
 
 ## Installation
 
-You can use this website at https://tinyurl.com/loopdce (ACTIVE)
+You can use this website at https://loopdtu.netlify.app/ (ACTIVE)
     
 ## Screenshots
 **Selection Screen**
