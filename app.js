@@ -28,9 +28,6 @@ const State = {
     caddyMarkers: {}, locationLabels: {}, pingMarkers: [],
     listeners: [],
     
-    // NOTE: Removed Google Maps Directions Service dependency
-    // directionsService: null,
-
     // Caddy-accessible stops
     campusLocations: {
         "Sports Complex": [28.7523639, 77.1176391],
@@ -48,17 +45,17 @@ const State = {
     locationKeywords: {
         "Sports Complex": ["sports", "complex", "stadium", "football", "sport"],
         "Main Gate": ["main gate", "mic-mac", "micmac", "entry", "exit"],
-        "Academic Block": ["academic", "mech", "coe", "it", "bce"], // "library" is now explore-only
-        "Raj Soin Hall": ["raj soin", "amphitheatre", "audi"], // "audi" is ambiguous, but this is caddy stop
+        "Academic Block": ["academic", "mech", "coe", "it", "bce"],
+        "Raj Soin Hall": ["raj soin", "amphitheatre", "audi"], 
         "Pragya Bhawan": ["pragya", "boys hostel", "bh"],
         "Girls Hostel": ["girls hostel", "gh"],
         "E.C.E Dept": ["ece", "electronics", "electrical", "ec"],
         "Health Centre": ["health", "medical", "clinic", "doctor"],
         "SOM": ["som", "dce", "school of management"],
-        "SPS": ["sps"] // "applied physics" is now explore-only
+        "SPS": ["sps"] 
     },
 
-    // NEW: Explore-only locations
+    // Explore-only locations
     exploreLocations: {
         "Civil Eng Block": [28.748890331387038, 77.11797913649546],
         "OAT": [28.749867345228857, 77.11754745028094],
@@ -76,7 +73,7 @@ const State = {
         "Type 2": [28.74625932490555, 77.11845857867867],
         "Concert Ground": [28.751925746225577, 77.11923457015183]
     },
-    // NEW: Keywords for explore-only locations
+    // Keywords for explore-only locations
     exploreKeywords: {
         "Civil Eng Block": ["civil", "enviro", "environmental"],
         "OAT": ["oat", "open air", "open theatre"],
@@ -156,9 +153,9 @@ const UI = {
         pingModalList: document.getElementById('ping-modal-list'),
         pingModalAcceptBtn: document.getElementById('ping-modal-accept-btn'),
         pingModalCloseBtn: document.getElementById('ping-modal-close-btn'),
-        driverMenu: document.getElementById('driverMenu'), // NEW
-        driverMenuName: document.getElementById('driver-menu-name'), // NEW
-        driverMenuType: document.getElementById('driver-menu-type'), // NEW
+        driverMenu: document.getElementById('driverMenu'),
+        driverMenuName: document.getElementById('driver-menu-name'),
+        driverMenuType: document.getElementById('driver-menu-type'),
     },
     common: {
         authUserId: document.getElementById('auth-user-id'),
@@ -171,8 +168,6 @@ window.App = {
         console.log("App initializing...");
         App.initFirebase();
         App.initAuth();
-        
-        // NOTE: Google Maps Directions Service initialization removed.
     },
 
     initFirebase: () => {
@@ -196,7 +191,7 @@ window.App = {
                 console.log("User authenticated:", State.userId);
                 App.onAppReady();
             } else {
-                console.log("No user found. Attempting anonymous sign-in...");
+                console.log("No user found. Attempting anonymous sign-in");
                 try {
                     await signInAnonymously(State.auth);
                 } catch (e) {
@@ -224,7 +219,7 @@ window.App = {
 
     selectRole: (role) => {
         State.role = role;
-        localStorage.setItem('app-role', role); // We can still save it for convenience, even if not used on load
+        localStorage.setItem('app-role', role);
         if (role === 'student') {
             App.showStudentView();
         } else {
@@ -232,19 +227,13 @@ window.App = {
         }
     },
 
-    // NEW: Log Out Function
     logoutAndSwitchRole: () => {
-        console.log("Logging out and switching role...");
-        // Disconnect driver if active
+        console.log("Logging out and switching role");
         DriverApp.logout(); 
-        // NEW: Clean up student resources
-        StudentApp.stopAndClear(); // <--- CRITICAL FIX: Ensures student marker is removed
-        // Stop all firebase listeners
+        StudentApp.stopAndClear();
         App.stopAllListeners(); 
-        // Clear role persistence
         localStorage.removeItem('app-role');
         State.role = null;
-        // Go back to role selection
         App.showRoleSelection();
     },
 
@@ -252,9 +241,8 @@ window.App = {
         App.hideAllViews();
         UI.views.roleSelection.style.display = 'flex';
         localStorage.removeItem('app-role');
-        DriverApp.logout(); // This will also hide driver menu
+        DriverApp.logout();
 
-        // Ensure student menus are also hidden
         if (UI.student.infoMenu) UI.student.infoMenu.style.display = 'none';
         if (UI.student.dtuChatModal) UI.student.dtuChatModal.style.display = 'none';
         if (UI.student.emergencyModal) UI.student.emergencyModal.style.display = 'none';
@@ -304,12 +292,12 @@ window.App = {
             }).addTo(State.map);
         }
         
-        // NEW: Add Explore-only Stops
+        // Add Explore-only Stops
         for (const name in State.exploreLocations) {
             L.marker(State.exploreLocations[name], { 
                 icon: L.divIcon({ className: 'explore-label', html: name, iconSize: [100,40], iconAnchor: [50,10] }), 
                 interactive: false,
-                zIndexOffset: -100 // Make them appear "below" main labels
+                zIndexOffset: -100
             }).addTo(State.map);
         }
     },
@@ -334,25 +322,24 @@ window.StudentApp = {
     
     isNavigatorMode: false,
     navigatorStartPoint: null,
-    routingControl: null, // For Leaflet Routing Machine
+    routingControl: null,
     selfMarker: null,
     selfLocation: null,
-    selfLocationWatchId: null, // NEW: Watch ID for the student's location tracker
+    selfLocationWatchId: null,
     navigatorLocationContext: null,
     navigatorEndMarker: null, 
-    navigatorDestination: null, // NEW: Store destination for tracking
-    navigatorWatchId: null,      // NEW: Store watch ID for dedicated navigation tracking
-    arrivalThreshold: 20,        // NEW: Meters to consider arrival
+    navigatorDestination: null,
+    navigatorWatchId: null,
+    arrivalThreshold: 20,
 
     init: () => {
-        console.log("Initializing Student View...");
+        console.log("Initializing Student View");
         StudentApp.startCaddyListener();
         StudentApp.startGpsEmergencyListener();
-        StudentApp.populateLocationButtons('ride'); // Populate ride buttons
-        StudentApp.populateLocationButtons('nav'); // Populate navigator buttons
+        StudentApp.populateLocationButtons('ride');
+        StudentApp.populateLocationButtons('nav');
         StudentApp.startSelfLocationWatcher();
         
-        // FIX: Add Enter key listener to the navigator search box
         UI.student.navDestinationInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 StudentApp.getDirections();
@@ -367,22 +354,17 @@ window.StudentApp = {
         UI.student.chatImageUpload.onchange = (e) => StudentApp.handleImageUpload(e, 'chatNavigator');
     },
     
-    // NEW: Function to stop all student-side trackers and clear markers
     stopAndClear: () => {
-        // Clear self marker
         if (StudentApp.selfMarker) {
             State.map.removeLayer(StudentApp.selfMarker);
             StudentApp.selfMarker = null;
         }
-        // Clear GPS watch for self location
         if (StudentApp.selfLocationWatchId) {
             navigator.geolocation.clearWatch(StudentApp.selfLocationWatchId);
             StudentApp.selfLocationWatchId = null;
         }
-        // Call existing route cleanup (stops navigation watch and clears route markers)
         StudentApp.clearRoute();
         
-        // Also stop the ride related listeners if they were missed
         if (StudentApp.pingListener) { StudentApp.pingListener(); StudentApp.pingListener = null; }
         if (StudentApp.autoResetTimer) clearTimeout(StudentApp.autoResetTimer);
         
@@ -395,13 +377,12 @@ window.StudentApp = {
 
         if (mode === 'ride') {
             scroller = UI.student.rideLocationScroller;
-            locations = State.campusLocations; // Ride scroller ONLY gets caddy stops
+            locations = State.campusLocations;
         } else {
             scroller = UI.student.navLocationScroller;
-            // Nav scroller gets ALL locations, merged
             locations = { ...State.campusLocations, ...State.exploreLocations };
         }
-        scroller.innerHTML = ''; // Clear old buttons
+        scroller.innerHTML = '';
 
         for (const name in locations) {
             const btn = document.createElement('button');
@@ -413,7 +394,7 @@ window.StudentApp = {
                     UI.student.aiRequestInput.value = `Ride from ${name}`;
                     StudentApp.sendRideRequest();
                 };
-            } else { // 'nav' mode
+            } else {
                 btn.onclick = () => {
                     UI.student.navDestinationInput.value = name;
                     StudentApp.getDirections();
@@ -429,7 +410,6 @@ window.StudentApp = {
             return;
         }
         
-        // Store the watch ID
         StudentApp.selfLocationWatchId = navigator.geolocation.watchPosition((pos) => {
             StudentApp.selfLocation = L.latLng(pos.coords.latitude, pos.coords.longitude);
             
@@ -529,7 +509,7 @@ window.StudentApp = {
                 sb.style.backgroundColor = "#10b981";
             } else if (data.status === 'pending') {
                 StudentApp.acceptedDriverId = null;
-                sb.innerText = "⏳ Waiting for Driver...";
+                sb.innerText = "⏳ Waiting for Driver";
                 sb.style.backgroundColor = "#f59e0b";
             } else if (data.status === 'EMERGENCY') {
                 sb.innerText = "🚑 EMERGENCY DISPATCHED";
@@ -564,7 +544,7 @@ window.StudentApp = {
             StudentApp.showModal("Ride in Progress", "Please cancel your existing ride before requesting a new one.");
             return;
         }
-        StudentApp.setAIDispatcherLoading(true, "Thinking...");
+        StudentApp.setAIDispatcherLoading(true, "Thinking");
         try {
             const dispatchData = await StudentApp.askGeminiDispatcher(rawText);
             if (!dispatchData) {
@@ -573,7 +553,7 @@ window.StudentApp = {
             }
             
             if (dispatchData.priority && dispatchData.priority.toUpperCase() === 'EMERGENCY') {
-                StudentApp.setAIDispatcherLoading(false, "Emergency detected! Opening Triage...");
+                StudentApp.setAIDispatcherLoading(false, "Emergency detected! Opening Triage");
                 UI.student.aiRequestInput.value = '';
                 StudentApp.toggleEmergency();
                 return;
@@ -592,25 +572,16 @@ window.StudentApp = {
             
             // --- SMART REDIRECT LOGIC ---
             if (locationData.type === 'caddy') {
-                // Happy Path: It's a caddy stop
-                StudentApp.setAIDispatcherLoading(true, `Requesting at ${locationData.stopName}...`);
+                StudentApp.setAIDispatcherLoading(true, `Requesting at ${locationData.stopName}`);
                 await StudentApp.sendPing(locationData.stopName, dispatchData);
             
             } else if (locationData.type === 'explore') {
-                // Smart Redirect: It's an explore-only stop
                 const nearestCaddyStop = StudentApp.findNearestCaddyStop(locationData.stopName);
-                
-                StudentApp.setAIDispatcherLoading(true, `Caddies can't go to ${locationData.stopName}. Redirecting to ${nearestCaddyStop}...`);
-                
-                // Add context for the driver
+                StudentApp.setAIDispatcherLoading(true, `Caddies can't go to ${locationData.stopName}. Redirecting to ${nearestCaddyStop}`);
                 dispatchData.context_notes = `(Originally at ${locationData.stopName}) ${dispatchData.context_notes || ''}`;
-                
-                // Wait 2 seconds to let the user read the message
                 await new Promise(resolve => setTimeout(resolve, 2500)); 
-                
                 await StudentApp.sendPing(nearestCaddyStop, dispatchData);
             }
-            // --- END SMART REDIRECT ---
 
             StudentApp.setAIDispatcherLoading(false);
             UI.student.aiRequestInput.value = '';
@@ -668,11 +639,8 @@ window.StudentApp = {
         }
     },
 
-    // Refactored to check both caddy and explore keywords
     findClosestStop: (rawText) => {
         const cleanText = rawText.toLowerCase();
-        
-        // Check caddy stops first (higher priority)
         for (const [stopName, keywords] of Object.entries(State.locationKeywords)) {
             for (const keyword of keywords) {
                 if (cleanText.includes(keyword)) {
@@ -680,8 +648,6 @@ window.StudentApp = {
                 }
             }
         }
-        
-        // Check explore-only stops second
         for (const [stopName, keywords] of Object.entries(State.exploreKeywords)) {
             for (const keyword of keywords) {
                 if (cleanText.includes(keyword)) {
@@ -692,10 +658,9 @@ window.StudentApp = {
         return null;
     },
     
-    // NEW: Helper function for the smart redirect
     findNearestCaddyStop: (exploreStopName) => {
         const exploreCoords = State.exploreLocations[exploreStopName];
-        if (!exploreCoords) return "Main Gate"; // Failsafe
+        if (!exploreCoords) return "Main Gate";
 
         let minDistance = Infinity;
         let nearestStop = "Main Gate";
@@ -710,8 +675,6 @@ window.StudentApp = {
         return nearestStop;
     },
 
-
-    // --- Ping/Ride Actions ---
     sendPing: async (closestStop, dispatchData) => {
         if (StudentApp.activePing) await StudentApp.cancelPing();
         StudentApp.optimizeMapView(closestStop);
@@ -767,7 +730,7 @@ window.StudentApp = {
         StudentApp.autoResetTimer = setTimeout(() => {
             StudentApp.resetUI(true);
             StudentApp.showModal("Ride Timed Out", "Your ride request has timed out and was automatically cancelled.");
-        }, 420000); // 7 minutes
+        }, 420000);
     },
 
     updateUI: () => {
@@ -805,7 +768,6 @@ window.StudentApp = {
         }
     },
     
-    // --- Navigator Mode ---
     toggleNavigatorMode: () => {
         StudentApp.isNavigatorMode = !StudentApp.isNavigatorMode;
         if (StudentApp.isNavigatorMode) {
@@ -834,7 +796,7 @@ window.StudentApp = {
 
     findMyLocation: () => {
         if (!StudentApp.selfLocation) {
-            StudentApp.showModal("GPS Error", "Still finding your location... Please wait a moment or check permissions.");
+            StudentApp.showModal("GPS Error", "Still finding your location. Please wait a moment or check permissions.");
             return;
         }
         StudentApp.navigatorStartPoint = StudentApp.selfLocation;
@@ -848,8 +810,7 @@ window.StudentApp = {
 
         StudentApp.clearRoute(); 
         
-        // 1. Find the canonical location name
-        UI.student.navDestinationInput.placeholder = "Searching for location...";
+        UI.student.navDestinationInput.placeholder = "Searching for location";
         const destName = await StudentApp.askGeminiDestinationParser(rawText);
         
         if (!destName || destName === "null") {
@@ -858,35 +819,29 @@ window.StudentApp = {
             return;
         }
 
-        // Fill info in the (Where to box) with the canonical name
         UI.student.navDestinationInput.value = destName;
-        UI.student.navDestinationInput.placeholder = `Location found. Calculating route to ${destName}...`;
+        UI.student.navDestinationInput.placeholder = `Location found. Calculating route to ${destName}`;
 
-        // Check for start point (must be selfLocation)
         const startCoords = StudentApp.selfLocation;
         if (!startCoords) {
             StudentApp.showModal("Input Error", "Please enable GPS and wait for your current location to be found.");
-            UI.student.navDestinationInput.placeholder = "Search or select destination...";
+            UI.student.navDestinationInput.placeholder = "Search or select destination";
             return;
         }
         
-        // 2. Get coordinates
         const allLocations = { ...State.campusLocations, ...State.exploreLocations };
         const destLatLngArr = allLocations[destName];
         
         if (!destLatLngArr) {
             StudentApp.showModal("Error", "Could not find coordinates for that destination.");
-            UI.student.navDestinationInput.placeholder = "Search or select destination...";
+            UI.student.navDestinationInput.placeholder = "Search or select destination";
             return;
         }
         
         const destLatLng = L.latLng(destLatLngArr[0], destLatLngArr[1]);
-        
-        // 3. Draw the route using Leaflet Routing Machine AND start tracking
         StudentApp.drawRoute(startCoords, destLatLng, destName);
     },
 
-    // CRITICAL FIX: Corrected the structure of the Gemini API payload for systemInstruction
     askGeminiDestinationParser: async (text) => {
         const allLocationNames = Object.keys({ ...State.campusLocations, ...State.exploreLocations });
         const systemPrompt = `You are a DTU campus expert. A student needs directions.
@@ -912,7 +867,6 @@ window.StudentApp = {
             });
             if (!r.ok) throw new Error(`API Error: ${r.statusText}`);
             const d = await r.json();
-            // Robust parsing and fallback
             const jsonText = d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts[0] ? d.candidates[0].content.parts[0].text : '{"destination_name": null}';
             return JSON.parse(jsonText).destination_name;
         } catch (e) {
@@ -921,14 +875,10 @@ window.StudentApp = {
         }
     },
 
-    // UPDATED LEAFLET ROUTING IMPLEMENTATION
     drawRoute: (startLatLng, endLatLng, destName) => {
-        StudentApp.clearRoute(); // Clear previous route
-        
-        // 1. Store the destination for tracking
+        StudentApp.clearRoute();
         StudentApp.navigatorDestination = endLatLng;
         
-        // 2. Create the Leaflet Routing Control
         StudentApp.routingControl = L.Routing.control({
             waypoints: [
                 L.latLng(startLatLng.lat, startLatLng.lng),
@@ -938,19 +888,15 @@ window.StudentApp = {
                 serviceUrl: 'https://router.project-osrm.org/route/v1' 
             }),
             routeWhileDragging: false,
-            show: true, // IMPORTANT: Show instructions panel
+            show: true,
             addWaypoints: false,
             fitSelectedRoutes: true,
             lineOptions: {
-                styles: [{ color: '#2563eb', weight: 6, opacity: 0.8 }] // blue-600
+                styles: [{ color: '#2563eb', weight: 6, opacity: 0.8 }] 
             },
-            // Prevent LRM from drawing its own start/end markers
-            createMarker: function(i, wp, n) {
-                return null;
-            }
+            createMarker: function(i, wp, n) { return null; }
         }).addTo(State.map);
 
-        // 3. Add a destination marker
         StudentApp.navigatorEndMarker = L.marker(endLatLng, {
             icon: L.divIcon({
                 className: 'map-label active-glow',
@@ -961,46 +907,33 @@ window.StudentApp = {
             zIndexOffset: 800
         }).addTo(State.map);
 
-        UI.student.navDestinationInput.placeholder = "Route calculation complete. Starting tracking...";
+        UI.student.navDestinationInput.placeholder = "Route calculation complete. Starting tracking";
         UI.student.navClearBtn.style.display = 'block';
 
-        // 4. Start tracking once the route is drawn
         StudentApp.startNavigationTracking(endLatLng);
     },
 
-    // NEW: Function to start active tracking
     startNavigationTracking: (destinationLatLng) => {
-        // Clear previous tracking just in case
         if (StudentApp.navigatorWatchId) {
             navigator.geolocation.clearWatch(StudentApp.navigatorWatchId);
         }
         
-        // Zoom map to start the journey close up
         State.map.flyTo(StudentApp.selfLocation, 18, { duration: 1 });
-        
-        // Store destination
         StudentApp.navigatorDestination = destinationLatLng;
 
-        // Start a dedicated, high-accuracy watcher for navigation
         StudentApp.navigatorWatchId = navigator.geolocation.watchPosition((pos) => {
             const currentLoc = L.latLng(pos.coords.latitude, pos.coords.longitude);
-            StudentApp.selfLocation = currentLoc; // Update the general selfLocation
+            StudentApp.selfLocation = currentLoc;
             
-            // 1. Update own marker position
             if (StudentApp.selfMarker) {
                 StudentApp.selfMarker.setLatLng(currentLoc);
             }
-            
-            // 2. Pan map to follow the user
             State.map.panTo(currentLoc);
 
-            // 3. Check for arrival
             const distance = DriverApp.getDistance(currentLoc.lat, currentLoc.lng, StudentApp.navigatorDestination.lat, StudentApp.navigatorDestination.lng);
-
             if (distance < StudentApp.arrivalThreshold) {
                 StudentApp.endNavigation(StudentApp.navigatorEndMarker.options.icon.options.html);
             }
-
         }, (err) => {
             console.warn("Navigation Tracking Error:", err);
             StudentApp.showModal("Tracking Error", "GPS signal lost or weak. Tracking stopped.");
@@ -1014,37 +947,30 @@ window.StudentApp = {
         StudentApp.showModal("Navigation Started", "You are now being tracked along the route. Arriving within 20 meters of the destination will end the navigation.");
     },
 
-    // NEW: Function to end navigation
     endNavigation: (destinationName, isError = false) => {
         if (StudentApp.navigatorWatchId) {
             navigator.geolocation.clearWatch(StudentApp.navigatorWatchId);
             StudentApp.navigatorWatchId = null;
         }
 
-        StudentApp.clearRoute(); // Clears LRM control and destination marker
+        StudentApp.clearRoute();
 
         if (!isError) {
-            // Note: The destName comes from the HTML content of the marker
             const cleanDestName = destinationName ? destinationName.replace(/<[^>]*>/g, '').trim() : 'your destination';
             StudentApp.showModal("Destination Reached!", `You have arrived at ${cleanDestName}!`);
         }
-        
-        // Re-center map to campus overview
         State.map.flyTo([28.7490, 77.1175], 17);
     },
 
-    // Updated to clear the routing control, destination marker, and tracking watch
     clearRoute: () => {
         if (StudentApp.routingControl) { 
             State.map.removeControl(StudentApp.routingControl);
             StudentApp.routingControl = null;
         }
-        
         if (StudentApp.navigatorEndMarker) {
             State.map.removeLayer(StudentApp.navigatorEndMarker);
             StudentApp.navigatorEndMarker = null;
         }
-        
         if (StudentApp.navigatorWatchId) {
             navigator.geolocation.clearWatch(StudentApp.navigatorWatchId);
             StudentApp.navigatorWatchId = null;
@@ -1052,11 +978,10 @@ window.StudentApp = {
 
         UI.student.navClearBtn.style.display = 'none';
         UI.student.navDestinationInput.value = '';
-        UI.student.navDestinationInput.placeholder = "Search or select destination...";
+        UI.student.navDestinationInput.placeholder = "Search or select destination";
         StudentApp.navigatorDestination = null;
     },
 
-    // --- Multi-modal Vision "Where Am I?" ---
     handleImageUpload: (event, mode = 'dispatcher') => {
         const file = event.target.files[0];
         if (!file) return;
@@ -1075,12 +1000,12 @@ window.StudentApp = {
         const locationList = `[${allLocationNames.join(", ")}]`;
         
         if (mode === 'dispatcher') {
-            StudentApp.setAIDispatcherLoading(true, "Scanning image...");
+            StudentApp.setAIDispatcherLoading(true, "Scanning image");
             systemPrompt = `You are a DTU campus expert. A student is lost. Which of these known locations is closest to the photo? ${locationList}. Respond ONLY with a JSON object: {"location_guess": "LOCATION_NAME"}`;
         } else if (mode === 'navigator') {
-            StudentApp.showModal("Scanning...", "Identifying your location from the photo...");
+            StudentApp.showModal("Scanning", "Identifying your location from the photo");
             systemPrompt = `You are a DTU campus expert. A student is lost. Identify the location in the photo. Which of these locations is it? ${locationList}. Respond ONLY with a JSON object: {"location_guess": "LOCATION_NAME"}`;
-        } else { // 'chatNavigator'
+        } else {
             StudentApp.addChatMessage("...", false, true, "nav-loading");
             systemPrompt = `You are a DTU campus expert. A student is lost. Identify the location in the photo. Respond ONLY with a JSON object: {"location_guess": "LOCATION_NAME"}`;
         }
@@ -1094,7 +1019,7 @@ window.StudentApp = {
         };
 
         try {
-            const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${State.geminiApiKey}`, {
+            const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${State.geminiApiKey}`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             });
             if (!r.ok) throw new Error(`API Error: ${r.statusText}`);
@@ -1119,9 +1044,9 @@ window.StudentApp = {
                 } else {
                     StudentApp.showModal("Error", "Sorry, I couldn't recognize that place.");
                 }
-            } else { // 'chatNavigator'
+            } else {
                 if (guess && guess !== "null") {
-                    StudentApp.navigatorLocationContext = guess; // Set context
+                    StudentApp.navigatorLocationContext = guess;
                     StudentApp.updateMessage("nav-loading", `It looks like you're at the ${guess}. How can I help you? (e.g., "How do I get to the library?")`, false);
                 } else {
                     StudentApp.updateMessage("nav-loading", "Sorry, I couldn't recognize that place.", false);
@@ -1135,7 +1060,6 @@ window.StudentApp = {
         }
     },
     
-    // --- Modals, Chat, and Helpers ---
     setAIDispatcherLoading: (isLoading, statusText = "") => {
         UI.student.aiRequestInput.disabled = isLoading;
         UI.student.aiRequestSendBtn.style.display = isLoading ? 'none' : 'flex';
@@ -1188,7 +1112,7 @@ window.StudentApp = {
         UI.student.dtuChatInput.value = '';
         if (StudentApp.navigatorLocationContext) {
             const contextMsg = `User is at "${StudentApp.navigatorLocationContext}" and asked: "${msg}". Provide clear, step-by-step walking directions.`;
-            await StudentApp.askGemini(contextMsg, false, true); // true for navigator mode
+            await StudentApp.askGemini(contextMsg, false, true);
             StudentApp.navigatorLocationContext = null;
         } else {
             await StudentApp.askGemini(msg, false, false);
@@ -1205,7 +1129,7 @@ window.StudentApp = {
         } else if (isNavigator) {
             systemPrompt = `You are the DTU Campus Navigator. A student has provided their location and is asking for walking directions to a destination. Provide clear, step-by-step walking directions. Be friendly and clear.`;
         } else {
-            systemPrompt = `You are the DTU Student Assistant. You ONLY answer questions related to Delhi Technological University (DTU). If asked about anything else (including directions, unless a location context is provided), reply: "Sorry, I can only answer questions about Delhi Technological University." Keep answers short (max 2 sentences).`;
+            systemPrompt = `You are the DTU Student Assistant. You ONLY answer questions related to Delhi Technological University (DTU). If asked about anything else, reply: "Sorry, I can only answer questions about Delhi Technological University." Keep answers short (max 2 sentences).`;
         }
         if (isTriage && prompt === "START_TRIAGE") {
             const firstQuestion = "Are you injured?";
@@ -1290,8 +1214,6 @@ window.DriverApp = {
         if (DriverApp.watchId) navigator.geolocation.clearWatch(DriverApp.watchId);
         if (DriverApp.profile) setDoc(Collections.caddyDoc(DriverApp.profile.driverId), { active: false }, { merge: true });
         DriverApp.profile = null;
-        
-        // NEW: Hide driver menu on logout
         if (UI.driver.driverMenu) UI.driver.driverMenu.style.display = 'none';
     },
 
@@ -1312,14 +1234,12 @@ window.DriverApp = {
         DriverApp.startOtherDriversListener();
         UI.driver.pingModalCloseBtn.onclick = () => DriverApp.hidePingDetails();
 
-        // NEW: Populate driver menu
         if (DriverApp.profile) {
             UI.driver.driverMenuName.textContent = DriverApp.profile.driverName;
             UI.driver.driverMenuType.textContent = DriverApp.profile.type;
         }
     },
 
-    // NEW: Toggle for driver menu
     toggleMenu: () => {
         UI.driver.driverMenu.style.display = (UI.driver.driverMenu.style.display === 'block') ? 'none' : 'block';
         if (UI.driver.driverMenu.style.display === 'block' && DriverApp.profile) {
@@ -1366,8 +1286,10 @@ window.DriverApp = {
                 const coords = (data.lat && data.lng) ? [data.lat, data.lng] : State.campusLocations[data.locationName];
                 const isEmer = data.status === "EMERGENCY";
                 if (!coords || !data.count || data.count <= 0) return;
+                
+                // FIX APPLIED HERE: Ambulance sees only emergencies. Caddy sees EVERYTHING.
                 if (DriverApp.profile.type === 'AMBULANCE' && !isEmer) return;
-                if (DriverApp.profile.type === 'CADDY' && isEmer) return;
+                
                 if (DriverApp.activeRides.includes(locId)) {
                     const circle = L.circle(coords, { radius: 25 + (data.count * 2), color: "#16a34a", fillColor: "#16a34a", fillOpacity: 0.5, className: 'accepted-glow' }).addTo(State.map);
                     State.pingMarkers.push(circle);
@@ -1381,7 +1303,7 @@ window.DriverApp = {
                     const label = L.marker(coords, { interactive: false, icon: L.divIcon({ className: 'ping-label', html: `<div>${data.count}</div>`, iconSize: [28, 28] }) }).addTo(State.map);
                     State.pingMarkers.push(label);
                 }
-                circle.on('click', () => DriverApp.showPingDetails(locId, data, isEmer)); // FIX: Passed data instead of pingData
+                circle.on('click', () => DriverApp.showPingDetails(locId, data, isEmer));
                 State.pingMarkers.push(circle);
             });
         }, (error) => console.error("Ping listener error:", error));
@@ -1478,7 +1400,6 @@ window.DriverApp = {
         StudentApp.showModal("Finish Rides", "Finish all current rides?", "Yes, Finish", "Cancel", async (didConfirm) => {
             if (!didConfirm) return;
             for (const locId of DriverApp.activeRides) {
-                // Clear the ping completely
                 await setDoc(Collections.pingDoc(locId), { status: "pending", count: 0, requests: [], driverId: null }, { merge: true });
             }
             DriverApp.activeRides = [];
