@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Loop DTU </title>
+    
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Leaflet Maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Load Leaflet Rotated Marker Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.min.js"></script>
+
+    <!-- Leaflet Routing Machine (No longer used for Explore, but kept for potential other uses) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    
+    <!-- NEW: Load Google Maps API for Directions -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCcPMrkvPgC6im_Z19Z83Wa2RJr7-6fZ2M"></script>
+
+    <!-- App Styles -->
+    <style>
+        /* Use Inter font */
+        body {
+            font-family: "Inter", "Poppins", sans-serif;
+            overscroll-behavior: none;
+            overflow: hidden;
+        }
+
+        /* Leaflet Map Height */
+        #map {
+            height: 100vh;
+            width: 100vw;
+            z-index: 1;
+        }
+
+        /* Custom Map Label (Caddy Stops) */
+        .map-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 700;
+            color: #334155; /* slate-700 */
+            text-shadow: -1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff;
+            white-space: nowrap;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+        .map-label.active-glow {
+            color: #3b82f6 !important; /* blue-500 */
+            font-size: 14px !important;
+            z-index: 999 !important;
+            text-shadow: 0 0 15px #3b82f6, -2px -2px 0 white, 2px -2px 0 white, -2px 2px 0 white, 2px 2px 0 white !important;
+        }
+        
+        /* NEW: Explore-only location label */
+        .explore-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 9px;
+            font-weight: 600;
+            color: #475569; /* slate-600 */
+            text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0.9;
+        }
+
+        /* Driver Ping Label */
+        .ping-label {
+            color: #1e3a8a; /* blue-900 */
+            background: white;
+            border-radius: 9999px;
+            border: 2px solid #1e3a8a;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            font-size: 14px;
+            font-weight: 700;
+            text-align: center;
+            width: 28px !important;
+            height: 28px !important;
+            line-height: 24px; /* Vertically center */
+            margin-left: -14px;
+            margin-top: -14px;
+        }
+
+        /* Emergency Pulse Animation */
+        @keyframes emergency-flash { 0% { opacity: 0.9; fill-opacity: 0.9; } 50% { opacity: 0.4; fill-opacity: 0.2; } 100% { opacity: 0.9; fill-opacity: 0.9; } }
+        .emergency-pulse { animation: emergency-flash 1s infinite ease-in-out; stroke: #dc2626; stroke-width: 4px; }
+
+        /* Accepted Ride Pulse (Driver) */
+        @keyframes accepted-pulse { 0% { fill-opacity: 0.4; } 50% { fill-opacity: 0.7; } 100% { fill-opacity: 0.4; } }
+        .accepted-glow { animation: accepted-pulse 2s infinite; stroke: #16a34a; stroke-width: 3px; stroke-opacity: 0.8; }
+
+        /* Driver Status Pulse (Green) */
+        @keyframes pulse-green { 0% { box-shadow: 0 0 0 0px rgba(22, 163, 74, 0.4); } 100% { box-shadow: 0 0 0 10px rgba(22, 163, 74, 0); } }
+        .status-active .status-dot { animation: pulse-green 2s infinite; }
+
+        /* SOS Button Pulse (Red) */
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0px rgba(220, 38, 38, 0.5); } 50% { box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0px rgba(220, 38, 38, 0); } }
+        .sos-pulse { animation: pulse-red 2s infinite; }
+
+        /* Hide scrollbars */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Splash Screen Loading Bar Animation */
+        @keyframes loadProgress { 0% { width: 5% } 60% { width: 70% } 100% { width: 100% } }
+        .loading-bar { animation: loadProgress 2.0s ease-in-out forwards; }
+        @keyframes logo-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
+        #splash-logo { animation: logo-pulse 2s infinite ease-in-out; }
+
+        /* Loading Spinner */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner { animation: spin 1s linear infinite; }
+
+        /* Hide Leaflet Routing Machine default panel */
+        .leaflet-routing-container { display: none !important; }
+        
+        /* Style for "You are here" Student marker */
+        @keyframes gps-pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.5); opacity: 0.2; }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+        .student-self-marker-ring {
+            animation: gps-pulse 2s infinite ease-out;
+            border-radius: 50%;
+            background: rgba(37, 99, 235, 0.3);
+            border: 2px solid white;
+            width: 24px;
+            height: 24px;
+        }
+        .student-self-marker-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #2563eb;
+            border: 2px solid white;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+
+<body class="bg-slate-900 overflow-hidden">
+
+    <!-- 
+    ====================================================================
+    VIEW: Splash Screen (Visible on load)
+    ====================================================================
+    -->
+    <div id="splash-screen" class="fixed top-0 left-0 w-full h-full bg-[#f8ebcc] flex flex-col items-center justify-center z-[9999] transition-opacity duration-700 ease-out">
+        <img src="https://i.postimg.cc/FHvtBpPc/Chat-GPT-Image-Nov-8-2025-02-31-24-PM.png" alt="Loop DTU Logo" id="splash-logo" class="w-[280px] max-w-[60%] h-auto mb-10">
+        <div class="w-[200px] max-w-[70%] h-2 bg-slate-300 rounded-full overflow-hidden shadow-inner">
+            <div class="loading-bar h-full w-0 bg-red-600 rounded-full"></div>
+        </div>
+    </div>
+
+    <!-- 
+    ====================================================================
+    VIEW: Role Selection
+    ====================================================================
+    -->
+    <!-- STYLING UPDATE: Changed background to bg-[#f8ebcc] and text colors to dark for better readability -->
+    <!-- UI FIX: Changed h-full to h-screen to prevent overscroll issues on mobile -->
+    <div id="role-selection-view" class="hidden w-full h-screen p-8 pt-[env(safe-area-inset-top)] flex-col items-center justify-center text-slate-900 bg-[#f8ebcc]">
+        <img src="https://i.postimg.cc/FHvtBpPc/Chat-GPT-Image-Nov-8-2025-02-31-24-PM.png" alt="Loop DTU Logo" class="w-[200px] h-auto mb-16">
+        <h1 class="text-3xl font-bold text-center mb-4 text-slate-900">Welcome to Loop</h1>
+        <p class="text-lg text-slate-700 text-center mb-12">The official DTU campus loop service.</p>
+        
+        <div class="w-full max-w-sm flex flex-col gap-5">
+            <button onclick="App.selectRole('student')" class="w-full bg-blue-600 text-white font-bold py-4 px-6 rounded-2xl text-lg shadow-lg hover:bg-blue-500 transition-transform active:scale-95">
+                I'm a Student
+            </button>
+            <!-- STYLING UPDATE: Changed button style for better contrast on light background -->
+            <button onclick="App.selectRole('driver')" class="w-full bg-white text-slate-800 border border-slate-300 font-bold py-4 px-6 rounded-2xl text-lg shadow-lg hover:bg-slate-50 transition-transform active:scale-95">
+                I'm a Driver
+            </button>
+        </div>
+        <p class="text-slate-600 text-xs mt-12 text-center">User ID: <span id="auth-user-id" class="font-mono">...</span></p>
+    </div>
+
+    <!-- 
+    ====================================================================
+    VIEW: Driver Login
+    ====================================================================
+    -->
+    <!-- UI FIX: Changed h-full to h-screen to prevent overscroll issues on mobile -->
+    <div id="driver-login-view" class="hidden w-full h-screen p-8 pt-[env(safe-area-inset-top)] flex-col items-center justify-center text-white bg-slate-900">
+        <h1 class="text-3xl font-bold text-center mb-4">Driver Setup</h1>
+        <p class="text-lg text-slate-400 text-center mb-12">Please enter your details to go online.</p>
+        
+        <div class="w-full max-w-sm flex flex-col gap-5">
+            <input type="text" id="driver-name-input" placeholder="Enter your name (e.g., Rajesh)" class="w-full text-black py-4 px-6 rounded-2xl text-lg border-2 border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none">
+            
+            <select id="driver-type-select" class="w-full text-black py-4 px-6 rounded-2xl text-lg border-2 border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="CADDY">🛺 Caddy</option>
+                <option value="AMBULANCE">🚑 Ambulance</option>
+            </select>
+
+            <button onclick="DriverApp.login()" class="w-full bg-green-600 text-white font-bold py-4 px-6 rounded-2xl text-lg shadow-lg hover:bg-green-500 transition-transform active:scale-95">
+                Go Online
+            </button>
+        </div>
+        <button onclick="App.showRoleSelection()" class="text-slate-400 mt-8 hover:text-white">Back</button>
+    </div>
+
+    <!-- 
+    ====================================================================
+    VIEW: Main App (Student & Driver)
+    ====================================================================
+    -->
+    <div id="main-app-view" class="hidden">
+        <!-- The Leaflet Map Container -->
+        <div id="map"></div>
+
+        <!-- 
+        ================================================================
+        STUDENT UI ELEMENTS
+        ================================================================
+        -->
+        <div id="student-ui" class="hidden">
+            <!-- Ride Status Banner -->
+            <div id="rideStatus" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-[1000] px-6 py-3 rounded-full font-bold text-white shadow-lg text-sm max-w-[90%] whitespace-nowrap overflow-hidden text-ellipsis transition-all duration-300" style="top: calc(20px + env(safe-area-inset-top));">
+                ⏳ Waiting for Driver...
+            </div>
+
+            <!-- Menu Button -->
+            <button id="menu-btn" onclick="StudentApp.toggleMenu()" class="fixed left-5 w-12 h-12 bg-white rounded-xl shadow-lg z-[2000] text-2xl flex items-center justify-center text-slate-800" style="top: calc(30px + env(safe-area-inset-top));">
+                ☰
+            </button>
+            
+            <!-- Info Menu -->
+            <div id="infoMenu" class="hidden fixed left-5 bg-white p-5 rounded-2xl shadow-xl z-[3000] w-60 animate-slideInLeft" style="top: calc(90px + env(safe-area-inset-top));">
+                <div class="mb-3 text-slate-700 text-sm">🕒 <b>Operating Hours:</b> 9:00 AM - 5:00 PM</div>
+                <div class="mb-5 text-slate-700 text-sm">🍱 <b>Lunch Break:</b> 1:00 PM - 2:00 PM</div>
+                <div class="text-base mb-2">Active Carts</div>
+                <div class="text-4xl font-bold text-green-600 mb-4"><span id="activeCartCount">0</span> / 5</div>
+                <button onclick="StudentApp.toggleMenu()" class="w-full mt-2 p-2 bg-slate-100 rounded-lg font-semibold text-slate-700">Close</button>
+                
+                <!-- NEW: Log Out Button -->
+                <button onclick="App.logoutAndSwitchRole()" class="w-full mt-4 p-2 bg-red-100 text-red-700 rounded-lg font-semibold hover:bg-red-200">
+                    Log Out & Switch Role
+                </button>
+            </div>
+
+            <!-- SOS Button -->
+            <button id="sos-btn" onclick="StudentApp.toggleEmergency()" class="sos-pulse fixed right-5 w-14 h-14 bg-red-600 text-white rounded-full text-3xl shadow-lg z-[2000] flex items-center justify-center font-bold" style="top: calc(30px + env(safe-area-inset-top));">
+                +
+            </button>
+
+            <!-- FAQ Chat Button -->
+            <button id="chat-btn" onclick="StudentApp.toggleDTUChat()" class="fixed left-5 bottom-40 w-14 h-14 bg-blue-600 text-white rounded-full text-2xl shadow-lg z-[2000] flex items-center justify-center" style="bottom: calc(170px + env(safe-area-inset-bottom));">
+                💬
+            </button>
+
+            <!-- Explore Mode Button -->
+            <!-- UI FIX: Changed icon to 🚶‍♂️ and increased left margin to left-24 -->
+            <button id="explore-mode-btn" onclick="StudentApp.toggleNavigatorMode()" class="fixed left-24 w-14 h-14 bg-purple-600 text-white rounded-full text-2xl shadow-lg z-[2000] flex items-center justify-center" style="bottom: calc(170px + env(safe-area-inset-bottom));">
+                🚶‍♂️
+            </button>
+            
+            <!-- Ride Action Buttons -->
+            <div id="ride-action-buttons" class="fixed right-5 bottom-40 z-[2000] flex flex-col gap-3 items-end" style="bottom: calc(170px + env(safe-area-inset-bottom));">
+                <button id="cancelBtn" onclick="StudentApp.cancelPing()" class="hidden py-3 px-5 bg-slate-800 text-white rounded-2xl font-semibold shadow-lg transition-transform active:scale-95">
+                    Cancel Ride ✖
+                </button>
+                <button id="gotRideBtn" onclick="StudentApp.gotRide()" class="hidden py-3 px-5 bg-green-600 text-white rounded-2xl font-semibold shadow-lg transition-transform active:scale-95">
+                    Got a Ride ✅
+                </button>
+            </div>
+            
+            <!-- 
+            ================================================================
+            AI Ride Dispatcher
+            ================================================================
+            -->
+            <div id="ride-dispatcher-panel" class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md rounded-t-3xl shadow-2xl z-[1000] pb-[env(safe-area-inset-bottom)]">
+                <div class="p-4">
+                    <h2 class="font-bold text-slate-900 text-lg text-center mb-3">Request a Ride</h2>
+                    <!-- TEXTBOX ROW -->
+                    <div class="flex gap-2">
+                        <input type="file" accept="image/*" id="image-upload-input" class="hidden" onchange="StudentApp.handleImageUpload(event, 'dispatcher')">
+                        <button onclick="document.getElementById('image-upload-input').click()" class="flex-shrink-0 w-12 h-12 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center text-xl active:scale-95 transition-transform" title="Where am I? (Photo)">
+                            📷
+                        </button>
+                        <input type="text" id="ai-request-input" class="flex-1 p-3 border border-slate-300 rounded-full outline-none text-sm focus:ring-2 focus:ring-blue-500" placeholder="e.g., Me + 2 friends from Admin Block..." onkeypress="if(event.key==='Enter') StudentApp.sendRideRequest()">
+                        <button id="ai-request-send-btn" class="flex-shrink-0 w-12 h-12 bg-blue-600 text-white rounded-full font-semibold text-lg flex items-center justify-center active:scale-95 transition-transform" onclick="StudentApp.sendRideRequest()">
+                            ➤
+                        </button>
+                        <div id="ai-request-loading" class="hidden flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center">
+                            <svg class="spinner w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div id="ai-request-status" class="text-center text-xs text-slate-500 h-4 mt-2"></div>
+                    
+                    <!-- Location Button Scroller (Ride) -->
+                    <div id="ride-location-scroller" class="flex gap-3 overflow-x-auto pt-4 pb-1 no-scrollbar">
+                        <!-- Buttons will be injected by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 
+            ================================================================
+            AI Navigator Panel (Explore Mode)
+            ================================================================
+            -->
+            <div id="navigator-panel" class="hidden fixed top-0 left-0 w-full bg-white/90 backdrop-blur-md rounded-b-3xl shadow-2xl z-[1000] pt-[env(safe-area-inset-top)]">
+                <div class="p-4">
+                    <div class="flex gap-2 items-center">
+                        <h2 class="font-bold text-slate-900 text-lg text-left mr-auto">Explore DTU</h2>
+                        <button onclick="StudentApp.toggleNavigatorMode()" class="flex-shrink-0 py-2 px-4 bg-slate-200 text-slate-700 rounded-full font-semibold text-xs active:scale-95 transition-transform">
+                            Exit
+                        </button>
+                    </div>
+                    
+                    <!-- Start Location -->
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="StudentApp.findMyLocation()" class="flex-1 p-3 bg-blue-600 text-white rounded-full font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
+                            Find Me (GPS)
+                        </button>
+                        <input type="file" accept="image/*" id="navigator-image-upload" class="hidden" onchange="StudentApp.handleImageUpload(event, 'navigator')">
+                        <button onclick="document.getElementById('navigator-image-upload').click()" class="flex-1 p-3 bg-slate-200 text-slate-700 rounded-full font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                            📷 Where am I?
+                        </button>
+                    </div>
+                    
+                    <!-- Destination -->
+                    <div class="flex gap-2 mt-3">
+                        <input type="text" id="nav-destination-input" class="flex-1 p-3 border border-slate-300 rounded-full outline-none text-sm focus:ring-2 focus:ring-blue-500" placeholder="Where to?" onkeypress="if(event.key==='Enter') StudentApp.getDirections()">
+                        <button id="nav-go-btn" class="flex-shrink-0 w-12 h-12 bg-green-600 text-white rounded-full font-semibold text-lg flex items-center justify-center active:scale-95 transition-transform" onclick="StudentApp.getDirections()">
+                            GO
+                        </button>
+                    </div>
+                    
+                    <!-- Navigator Location Button Scroller -->
+                    <div id="nav-location-scroller" class="flex gap-3 overflow-x-auto pt-4 pb-1 no-scrollbar">
+                        <!-- Buttons will be injected by JS -->
+                    </div>
+                    
+                    <button id="nav-clear-btn" onclick="StudentApp.clearRoute()" class="hidden w-full mt-2 text-xs text-red-600">
+                        Clear Route
+                    </button>
+                </div>
+            </div>
+
+            <!-- DTU FAQ Chat Modal -->
+            <div id="dtuChatModal" class="hidden fixed left-5 w-[85vw] max-w-xs h-[400px] bg-white rounded-3xl shadow-2xl z-[3000] flex-col overflow-hidden" style="bottom: calc(230px + env(safe-area-inset-bottom));">
+                <div class="bg-blue-600 text-white p-4 flex justify-between items-center">
+                    <span class="font-bold">🏛️ DTU Assistant</span>
+                    <span onclick="StudentApp.toggleDTUChat()" class="cursor-pointer text-2xl font-light">&times;</span>
+                </div>
+                <div id="dtuChatBody" class="flex-1 p-4 overflow-y-auto bg-slate-50 flex flex-col gap-3">
+                    <div class="p-3 bg-blue-100 text-slate-800 rounded-2xl rounded-bl-lg max-w-[80%] self-start text-sm">
+                        Hello! Ask me anything about DTU.
+                    </div>
+                </div>
+                <div class="p-3 bg-white border-t border-slate-200 flex gap-2">
+                    <input type="file" accept="image/*" id="chat-image-upload" class="hidden" onchange="StudentApp.handleImageUpload(event, 'chatNavigator')">
+                    <button onclick="document.getElementById('chat-image-upload').click()" class="flex-shrink-0 w-11 h-11 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center text-xl active:scale-95 transition-transform" title="Where am I?">
+                        📷
+                    </button>
+                    <input type="text" id="dtuChatInput" class="flex-1 p-3 border border-slate-300 rounded-full outline-none text-sm focus:ring-2 focus:ring-blue-500" placeholder="Ask for directions..." onkeypress="if(event.key==='Enter') StudentApp.sendDTUChat()">
+                    <button class="bg-blue-600 text-white w-11 h-11 rounded-full font-semibold text-lg flex items-center justify-center" onclick="StudentApp.sendDTUChat()">➤</button>
+                </div>
+            </div>
+
+            <!-- Emergency Modal -->
+            <div id="emergencyModal" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-white p-6 rounded-3xl shadow-2xl z-[4000] border-4 border-red-600">
+                <h2 class="text-red-600 text-2xl font-bold text-center m-0">🚑 TRIAGE AI</h2>
+                <div id="chatLog" class="h-40 overflow-y-auto bg-slate-100 rounded-xl p-4 my-4 text-left text-sm flex flex-col gap-3">
+                    <!-- Triage messages appear here -->
+                </div>
+                <div id="interactionArea" class="flex gap-3 mt-4">
+                    <button class="triage-btn flex-1 p-4 border-none rounded-xl text-base font-bold text-white bg-red-600 transition-transform active:scale-95" onclick="StudentApp.handleTriageResponse('YES')">YES</button>
+                    <button class="triage-btn flex-1 p-4 border-none rounded-xl text-base font-bold text-white bg-blue-600 transition-transform active:scale-95" onclick="StudentApp.handleTriageResponse('NO')">NO</button>
+                </div>
+                <button id="forceDispatchBtn" class="w-full mt-4 p-3 bg-transparent border-2 border-red-600 text-red-600 font-bold rounded-xl transition-transform active:scale-95" onclick="StudentApp.forceDispatch()">
+                    🚨 FORCE CALL AMBULANCE
+                </button>
+                <button onclick="StudentApp.toggleEmergency(true)" class="w-full mt-3 text-slate-500 hover:text-slate-800">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <!-- 
+        ================================================================
+        DRIVER UI ELEMENTS
+        ================================================================
+        -->
+        <div id="driver-ui" class="hidden">
+            <!-- NEW: Driver Menu Button -->
+            <button id="driver-menu-btn" onclick="DriverApp.toggleMenu()" class="fixed left-5 w-12 h-12 bg-white rounded-xl shadow-lg z-[2000] text-2xl flex items-center justify-center text-slate-800" style="top: calc(30px + env(safe-area-inset-top));">
+                ☰
+            </button>
+            
+            <!-- NEW: Driver Menu Panel -->
+            <div id="driverMenu" class="hidden fixed left-5 bg-white p-5 rounded-2xl shadow-xl z-[3000] w-60" style="top: calc(90px + env(safe-area-inset-top));">
+                <div class="text-base mb-2 font-bold text-slate-800" id="driver-menu-name">Driver Name</div>
+                <div class="text-sm mb-4 text-slate-600" id="driver-menu-type">Caddy / Ambulance</div>
+                <button onclick="App.logoutAndSwitchRole()" class="w-full mt-4 p-2 bg-red-100 text-red-700 rounded-lg font-semibold hover:bg-red-200">
+                    Log Out & Switch Role
+                </button>
+                <button onclick="DriverApp.toggleMenu()" class="w-full mt-2 p-2 bg-slate-100 rounded-lg font-semibold text-slate-700">Close</button>
+            </div>
+
+            <!-- Status Bar -->
+            <div id="statusToggle" onclick="DriverApp.toggleDriverStatus()" class="fixed left-1/2 -translate-x-1/2 z-[1000] bg-white/95 backdrop-blur-md px-6 py-3 rounded-full shadow-lg flex items-center gap-3 font-bold text-slate-800 cursor-pointer select-none transition-all duration-200 active:scale-95" style="top: calc(20px + env(safe-area-inset-top));">
+                <div class="status-dot h-3 w-3 bg-slate-400 rounded-full transition-all duration-300"></div>
+                <span id="driverTitle" class="whitespace-nowrap max-w-[250px] overflow-hidden text-ellipsis">🔴 Driver Idle</span>
+            </div>
+
+            <!-- Clear Rides Button -->
+            <button id="clearRidesBtn" onclick="DriverApp.clearAllRides()" class="hidden fixed bottom-5 right-5 z-[1000] bg-slate-800 text-white px-8 py-4 rounded-full font-bold text-base shadow-lg transition-transform active:scale-95" style="bottom: calc(20px + env(safe-area-inset-bottom));">
+                Finish All Rides ✅
+            </button>
+
+            <!-- Driver Ping Details Modal -->
+            <div id="ping-details-modal" class="hidden fixed inset-0 bg-black/50 z-[5000] flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+                    <h3 class="text-xl font-bold text-slate-900 mb-1">Requests at:</h3>
+                    <h2 id="ping-modal-location" class="text-2xl font-bold text-blue-600 mb-4">...</h2>
+                    <div id="ping-modal-list" class="h-48 overflow-y-auto bg-slate-100 rounded-xl p-2 my-4 flex flex-col gap-2">
+                        <!-- Ping request items will be injected here -->
+                    </div>
+                    <div class="flex flex-col gap-3">
+                        <button id="ping-modal-accept-btn" class="w-full bg-green-600 text-white font-bold py-4 px-6 rounded-2xl text-lg shadow-lg hover:bg-green-500 transition-transform active:scale-95">
+                            Accept Ride
+                        </button>
+                        <button id="ping-modal-close-btn" class="w-full bg-slate-200 text-slate-700 font-bold py-3 px-6 rounded-2xl text-lg">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application Script -->
+    <script type="module" src="app.js"></script>
+
+</body>
+</html>
