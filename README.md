@@ -7,6 +7,8 @@ Beyond standard ride-hailing, Loop DTU integrates advanced AI features to enhanc
 
 Try it Now ! https://loopdtu.netlify.app/
 
+**This app only works inside the DTU campus**
+
 
 ## Features 
 
